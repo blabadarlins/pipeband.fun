@@ -1,0 +1,353 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import Header from "@/components/Header";
+import Timer from "@/components/Timer";
+import OptionPill from "@/components/OptionPill";
+import Button from "@/components/Button";
+import SpotifyPlayer from "@/components/SpotifyPlayer";
+import { useRouter } from "next/navigation";
+import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
+import { getRandomTracks, getAllBandNames, getAllYears } from "@/lib/supabase/queries";
+import type { Track } from "@/types";
+
+const TOTAL_TIME = 20;
+const TOTAL_QUESTIONS = 10;
+
+function generateOptions<T>(correct: T, allOptions: T[], count: number = 4): T[] {
+  const options = new Set<T>([correct]);
+  const available = allOptions.filter((o) => o !== correct);
+  
+  while (options.size < count && available.length > 0) {
+    const randomIndex = Math.floor(Math.random() * available.length);
+    options.add(available[randomIndex]);
+    available.splice(randomIndex, 1);
+  }
+  
+  return Array.from(options).sort(() => Math.random() - 0.5);
+}
+
+export default function QuizPage() {
+  const router = useRouter();
+  const { accessToken, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
+  
+  // Game state
+  const [isLoading, setIsLoading] = useState(true);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [allBands, setAllBands] = useState<string[]>([]);
+  const [allYears, setAllYears] = useState<number[]>([]);
+  
+  // Player state
+  const [playerReady, setPlayerReady] = useState(false);
+  const [playerError, setPlayerError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Question state
+  const [bandOptions, setBandOptions] = useState<string[]>([]);
+  const [yearOptions, setYearOptions] = useState<number[]>([]);
+  const [selectedBand, setSelectedBand] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  
+  // Score state
+  const [timeRemaining, setTimeRemaining] = useState(TOTAL_TIME);
+  const [score, setScore] = useState(0);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [totalTimeTaken, setTotalTimeTaken] = useState(0);
+
+  const currentTrack = tracks[currentQuestion];
+  const canContinue = selectedBand !== null && selectedYear !== null;
+
+  // Redirect to Spotify login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/api/auth/spotify");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Load tracks from Supabase
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [fetchedTracks, bands, years] = await Promise.all([
+          getRandomTracks(TOTAL_QUESTIONS),
+          getAllBandNames(),
+          getAllYears(),
+        ]);
+        
+        setTracks(fetchedTracks);
+        setAllBands(bands);
+        setAllYears(years);
+      } catch (error) {
+        console.error("Error loading quiz data:", error);
+      }
+      setIsLoading(false);
+    }
+    
+    loadData();
+  }, []);
+
+  // Generate options when question changes
+  useEffect(() => {
+    if (currentTrack && allBands.length > 0 && allYears.length > 0) {
+      setBandOptions(generateOptions(currentTrack.band_name, allBands, 4));
+      setYearOptions(generateOptions(currentTrack.year, allYears, 4));
+    }
+  }, [currentQuestion, currentTrack, allBands, allYears]);
+
+  // Timer logic
+  useEffect(() => {
+    if (!gameStarted || !playerReady || timeRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          handleContinue();
+          return TOTAL_TIME;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameStarted, playerReady, timeRemaining]);
+
+  const handleContinue = useCallback(() => {
+    const timeTaken = TOTAL_TIME - timeRemaining;
+    const newTotalTime = totalTimeTaken + timeTaken;
+    setTotalTimeTaken(newTotalTime);
+
+    // Check if answers are correct
+    let newScore = score;
+    let newCorrect = correctAnswers;
+    
+    if (currentTrack) {
+      const bandCorrect = selectedBand === currentTrack.band_name;
+      const yearCorrect = selectedYear === currentTrack.year;
+      
+      if (bandCorrect && yearCorrect) {
+        const basePoints = 100;
+        const timeBonus = Math.floor(timeRemaining * 5);
+        newScore = score + basePoints + timeBonus;
+        newCorrect = correctAnswers + 1;
+        setScore(newScore);
+        setCorrectAnswers(newCorrect);
+      }
+    }
+
+    // Move to next question or finish
+    if (currentQuestion < tracks.length - 1) {
+      setCurrentQuestion((prev) => prev + 1);
+      setSelectedBand(null);
+      setSelectedYear(null);
+      setTimeRemaining(TOTAL_TIME);
+      setPlayerError(null); // Clear any playback errors
+    } else {
+      // Quiz complete - redirect to results
+      const params = new URLSearchParams({
+        score: newScore.toString(),
+        correct: newCorrect.toString(),
+        total: tracks.length.toString(),
+        time: newTotalTime.toString(),
+      });
+      router.push(`/results?${params.toString()}`);
+    }
+  }, [currentQuestion, selectedBand, selectedYear, timeRemaining, currentTrack, score, correctAnswers, totalTimeTaken, tracks.length, router]);
+
+  // Auth loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
+            <p className="text-body">Loading...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Not authenticated - show loading while redirecting
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
+            <p className="text-body">Redirecting to Spotify login...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Loading tracks
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
+            <p className="text-body">Loading quiz...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // No tracks available
+  if (tracks.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center">
+            <h1 className="heading-lg mb-4">No tracks available</h1>
+            <p className="text-body mb-8">
+              The quiz database is empty. Please import tracks first.
+            </p>
+            <Button variant="primary" onClick={() => router.push("/")}>
+              Go Home
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Pre-game screen
+  if (!gameStarted) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        
+        <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+          <div className="max-w-2xl mx-auto text-center">
+            <h1 className="heading-lg mb-8">Are you ready to start?</h1>
+            
+            <p className="text-body mb-4">
+              You&apos;ll hear {tracks.length} audio clips from well-known pipe band medleys. 
+              Your job is to identify the correct <strong className="text-blue">band</strong> and <strong className="text-blue">year</strong> before time runs out! 
+              The faster you answer, the higher your score.
+            </p>
+            
+            <p className="text-body mb-4">
+              Correct answers earn you points. Faster responses get you bonus points. 
+              Score over 50% correct, and you&apos;ll get a special congratulations message!
+            </p>
+            
+            <p className="text-body mb-8">
+              Make sure your Spotify is not playing on another device.
+            </p>
+
+            {playerError && (
+              <div className="bg-red-100 text-red-700 px-4 py-3 rounded-lg mb-6">
+                {playerError}
+              </div>
+            )}
+            
+            <Button variant="primary" onClick={() => setGameStarted(true)}>
+              Let&apos;s go!
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-white">
+      <Header />
+      
+      <main className="flex-1 flex flex-col items-center px-4 py-8">
+        <div className="w-full max-w-3xl mx-auto">
+          {/* Progress indicator */}
+          <div className="text-center mb-4">
+            <span className="text-small">
+              Question {currentQuestion + 1} of {tracks.length}
+            </span>
+          </div>
+
+          {/* Timer */}
+          <div className="flex justify-center mb-8">
+            <Timer timeRemaining={timeRemaining} totalTime={TOTAL_TIME} />
+          </div>
+
+          {/* Spotify Player */}
+          <div className="flex justify-center mb-6">
+            {accessToken && (
+              <SpotifyPlayer
+                accessToken={accessToken}
+                trackUri={currentTrack?.spotify_uri || null}
+                onReady={() => setPlayerReady(true)}
+                onError={(error) => setPlayerError(error)}
+                onPlaybackChange={(playing) => setIsPlaying(playing)}
+              />
+            )}
+          </div>
+
+          {playerError && (
+            <div className="bg-red-100 text-red-700 px-4 py-3 rounded-lg mb-6 text-center">
+              {playerError}
+              <button 
+                onClick={() => {
+                  setPlayerError(null);
+                  handleContinue();
+                }}
+                className="ml-4 underline font-bold"
+              >
+                Skip this track
+              </button>
+            </div>
+          )}
+
+          {/* Question */}
+          <h1 className="heading-lg text-center mb-12">
+            Guess the band and year.
+          </h1>
+
+          {/* Band Options */}
+          <div className="flex flex-wrap justify-center gap-3 mb-6">
+            {bandOptions.map((band) => (
+              <OptionPill
+                key={band}
+                label={band}
+                selected={selectedBand === band}
+                onClick={() => setSelectedBand(band)}
+              />
+            ))}
+          </div>
+
+          {/* Year Options */}
+          <div className="flex flex-wrap justify-center gap-3 mb-16">
+            {yearOptions.map((year) => (
+              <OptionPill
+                key={year}
+                label={year.toString()}
+                selected={selectedYear === year}
+                onClick={() => setSelectedYear(year)}
+              />
+            ))}
+          </div>
+
+          {/* Continue Button */}
+          <div className="flex justify-center">
+            <Button
+              variant={canContinue ? "primary" : "disabled"}
+              disabled={!canContinue}
+              onClick={handleContinue}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
