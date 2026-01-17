@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens, getSpotifyUser } from "@/lib/spotify";
 import { cookies } from "next/headers";
 
+function getOrigin(request: NextRequest): string {
+  // Use forwarded headers (set by Vercel/proxies) for the correct public URL
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const protocol = request.headers.get("x-forwarded-proto") || "https";
+  return `${protocol}://${host}`;
+}
+
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin;
+  const origin = getOrigin(request);
   console.log("Auth callback hit:", request.url);
+  console.log("Determined origin:", origin);
   
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
