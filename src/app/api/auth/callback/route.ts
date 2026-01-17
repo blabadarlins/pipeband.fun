@@ -3,6 +3,7 @@ import { exchangeCodeForTokens, getSpotifyUser } from "@/lib/spotify";
 import { cookies } from "next/headers";
 
 export async function GET(request: NextRequest) {
+  const origin = request.nextUrl.origin;
   console.log("Auth callback hit:", request.url);
   
   const searchParams = request.nextUrl.searchParams;
@@ -14,12 +15,12 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.log("Spotify returned error:", error);
-    return NextResponse.redirect("http://127.0.0.1:3000/?error=auth_failed");
+    return NextResponse.redirect(`${origin}/?error=auth_failed`);
   }
 
   if (!code) {
     console.log("No code in callback");
-    return NextResponse.redirect("http://127.0.0.1:3000/?error=no_code");
+    return NextResponse.redirect(`${origin}/?error=no_code`);
   }
 
   try {
@@ -63,10 +64,9 @@ export async function GET(request: NextRequest) {
 
     // TODO: Upsert user to Supabase database
 
-    // Always redirect to 127.0.0.1 to match cookie domain
-    return NextResponse.redirect("http://127.0.0.1:3000/quiz");
+    return NextResponse.redirect(`${origin}/quiz`);
   } catch (error) {
     console.error("Auth callback error:", error);
-    return NextResponse.redirect("http://127.0.0.1:3000/?error=auth_failed");
+    return NextResponse.redirect(`${origin}/?error=auth_failed`);
   }
 }
