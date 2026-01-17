@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import Timer from "@/components/Timer";
 import OptionPill from "@/components/OptionPill";
 import Button from "@/components/Button";
-import SpotifyPlayer from "@/components/SpotifyPlayer";
+import SpotifyPlayer, { pauseSpotifyPlayer } from "@/components/SpotifyPlayer";
 import { useRouter } from "next/navigation";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 import { getRandomTracks, getAllBandNames, getAllYears } from "@/lib/supabase/queries";
@@ -56,6 +56,9 @@ export default function QuizPage() {
   const [score, setScore] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [totalTimeTaken, setTotalTimeTaken] = useState(0);
+  
+  // Exit modal state
+  const [showExitModal, setShowExitModal] = useState(false);
 
   const currentTrack = tracks[currentQuestion];
   const canContinue = selectedBand !== null && selectedYear !== null;
@@ -98,9 +101,9 @@ export default function QuizPage() {
     }
   }, [currentQuestion, currentTrack, allBands, allYears]);
 
-  // Timer logic
+  // Timer logic - pauses when exit modal is shown
   useEffect(() => {
-    if (!gameStarted || !playerReady || timeRemaining <= 0) return;
+    if (!gameStarted || !playerReady || timeRemaining <= 0 || showExitModal) return;
 
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
@@ -113,7 +116,7 @@ export default function QuizPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [gameStarted, playerReady, timeRemaining]);
+  }, [gameStarted, playerReady, timeRemaining, showExitModal]);
 
   const handleContinue = useCallback(() => {
     const timeTaken = TOTAL_TIME - timeRemaining;
@@ -146,7 +149,8 @@ export default function QuizPage() {
       setTimeRemaining(TOTAL_TIME);
       setPlayerError(null); // Clear any playback errors
     } else {
-      // Quiz complete - redirect to results
+      // Quiz complete - stop the music and redirect to results
+      pauseSpotifyPlayer();
       const params = new URLSearchParams({
         score: newScore.toString(),
         correct: newCorrect.toString(),
@@ -287,12 +291,67 @@ export default function QuizPage() {
     );
   }
 
+  const handleExitClick = () => {
+    setShowExitModal(true);
+    pauseSpotifyPlayer();
+  };
+
+  const handleCancelExit = () => {
+    setShowExitModal(false);
+  };
+
+  const handleConfirmExit = () => {
+    pauseSpotifyPlayer();
+    router.push("/");
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
       
+      {/* Exit Confirmation Modal */}
+      {showExitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-8 max-w-md mx-4 shadow-xl">
+            <h2 className="heading-md text-center mb-4">Exit Quiz?</h2>
+            <p className="text-body text-center mb-8">
+              Are you sure you want to exit? Your progress will be lost.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Button variant="secondary" onClick={handleCancelExit}>
+                Keep Playing
+              </Button>
+              <Button variant="primary" onClick={handleConfirmExit}>
+                Exit Quiz
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <main className="flex-1 flex flex-col items-center px-4 py-8">
-        <div className="w-full max-w-3xl mx-auto">
+        <div className="w-full max-w-3xl mx-auto relative">
+          {/* Exit button */}
+          <button
+            onClick={handleExitClick}
+            className="absolute left-0 top-0 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="Exit quiz"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          
           {/* Progress indicator */}
           <div className="text-center mb-4">
             <span className="text-small">

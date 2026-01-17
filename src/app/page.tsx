@@ -25,16 +25,11 @@ export default function Home() {
             Think you&apos;ve got what it takes? Let&apos;s find out!
           </p>
           
-          <div className="flex items-center justify-center gap-4">
-            <Link href="/login">
-              <Button variant="secondary">Login</Button>
-            </Link>
-            <Link href="/api/auth/spotify">
-              <Button variant="primary" icon={<SpotifyIcon />}>
-                Join Today
-              </Button>
-            </Link>
-          </div>
+          <Link href="/api/auth/spotify">
+            <Button variant="primary" icon={<SpotifyIcon />}>
+              Play free
+            </Button>
+          </Link>
         </div>
       </main>
 

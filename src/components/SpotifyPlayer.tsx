@@ -356,3 +356,15 @@ export function activateSpotifyPlayer(): Promise<void> {
   }
   return Promise.resolve();
 }
+
+// Export a function to pause playback
+export async function pauseSpotifyPlayer(): Promise<void> {
+  if (globalPlayer) {
+    try {
+      await globalPlayer.pause();
+      console.log("Spotify playback paused");
+    } catch (error) {
+      console.error("Error pausing Spotify player:", error);
+    }
+  }
+}
