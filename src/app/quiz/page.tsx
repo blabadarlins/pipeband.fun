@@ -41,6 +41,7 @@ export default function QuizPage() {
   
   // Player state
   const [playerReady, setPlayerReady] = useState(false);
+  const [playerActivated, setPlayerActivated] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   
@@ -251,10 +252,35 @@ export default function QuizPage() {
                 {playerError}
               </div>
             )}
-            
-            <Button variant="primary" onClick={() => setGameStarted(true)}>
-              Let&apos;s go!
-            </Button>
+
+            {/* Initialize Spotify Player and require activation before starting */}
+            <div className="flex flex-col items-center gap-6">
+              {accessToken && (
+                <SpotifyPlayer
+                  accessToken={accessToken}
+                  trackUri={playerActivated ? (currentTrack?.spotify_uri || null) : null}
+                  onReady={() => setPlayerReady(true)}
+                  onError={(error) => setPlayerError(error)}
+                  onPlaybackChange={(playing) => setIsPlaying(playing)}
+                  onActivate={() => {
+                    setPlayerActivated(true);
+                    setGameStarted(true);
+                  }}
+                />
+              )}
+              
+              {playerActivated && (
+                <Button variant="primary" onClick={() => setGameStarted(true)}>
+                  Let&apos;s go!
+                </Button>
+              )}
+              
+              {!playerActivated && playerReady && (
+                <p className="text-small text-grey">
+                  Click the play button above to enable audio
+                </p>
+              )}
+            </div>
           </div>
         </main>
       </div>
@@ -288,6 +314,7 @@ export default function QuizPage() {
                 onReady={() => setPlayerReady(true)}
                 onError={(error) => setPlayerError(error)}
                 onPlaybackChange={(playing) => setIsPlaying(playing)}
+                onActivate={() => setPlayerActivated(true)}
               />
             )}
           </div>
