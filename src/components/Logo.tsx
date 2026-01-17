@@ -4,6 +4,7 @@ import Link from "next/link";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg";
+  variant?: "default" | "light";
   className?: string;
 }
 
@@ -22,13 +23,14 @@ const sizes = {
   },
 };
 
-export default function Logo({ size = "md", className = "" }: LogoProps) {
+export default function Logo({ size = "md", variant = "default", className = "" }: LogoProps) {
   const sizeStyles = sizes[size];
+  const funColorClass = variant === "light" ? "logo-fun-light" : "";
 
   return (
     <Link href="/" className={`inline-flex items-baseline ${className}`}>
       <span className={`logo-pipeband ${sizeStyles.pipeband}`}>pipeband</span>
-      <span className={`logo-fun ${sizeStyles.fun}`}>.fun</span>
+      <span className={`logo-fun ${sizeStyles.fun} ${funColorClass}`}>.fun</span>
     </Link>
   );
 }

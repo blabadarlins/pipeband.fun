@@ -44,7 +44,7 @@ const faqs = [
 export default function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-accent">
-      <Header />
+      <Header logoVariant="light" />
       
       <main className="flex-1 px-4 py-8">
         <div className="max-w-4xl mx-auto">

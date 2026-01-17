@@ -54,6 +54,10 @@ body {
   color: var(--accent);
 }
 
+.logo-fun-light {
+  color: var(--white) !important;
+}
+
 /* Button base styles */
 .btn {
   display: inline-flex;
