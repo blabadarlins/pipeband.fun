@@ -36,7 +36,7 @@ async function fetchPlaylistTracks(accessToken: string) {
   let url: string | null = `https://api.spotify.com/v1/playlists/${PLAYLIST_ID}/tracks?limit=100`;
 
   while (url) {
-    const response = await fetch(url, {
+    const response: Response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
