@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Button from "@/components/Button";
 import SpotifyIcon from "@/components/SpotifyIcon";
+import LoadingState from "@/components/LoadingState";
 import Link from "next/link";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 
@@ -22,31 +23,12 @@ export default function Home() {
 
   // Show loading state while checking auth
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent"></div>
-        </main>
-        <Footer />
-      </div>
-    );
+    return <LoadingState showFooter />;
   }
 
   // If authenticated, show loading while redirecting
   if (isAuthenticated) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
-            <p className="text-body">Taking you to the quiz...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
+    return <LoadingState message="Taking you to the quiz..." showFooter />;
   }
 
   return (

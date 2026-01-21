@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Header from "@/components/Header";
 import Timer from "@/components/Timer";
 import OptionPill from "@/components/OptionPill";
 import Button from "@/components/Button";
 import SpotifyPlayer, { pauseSpotifyPlayer } from "@/components/SpotifyPlayer";
+import LoadingState from "@/components/LoadingState";
 import { useRouter } from "next/navigation";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 import { getRandomTracks, getAllBandNames, getAllYears } from "@/lib/supabase/queries";
@@ -43,11 +44,8 @@ export default function QuizPage() {
   const [playerReady, setPlayerReady] = useState(false);
   const [playerActivated, setPlayerActivated] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   
   // Question state
-  const [bandOptions, setBandOptions] = useState<string[]>([]);
-  const [yearOptions, setYearOptions] = useState<number[]>([]);
   const [selectedBand, setSelectedBand] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   
@@ -93,30 +91,15 @@ export default function QuizPage() {
     loadData();
   }, []);
 
-  // Generate options when question changes
-  useEffect(() => {
-    if (currentTrack && allBands.length > 0 && allYears.length > 0) {
-      setBandOptions(generateOptions(currentTrack.band_name, allBands, 4));
-      setYearOptions(generateOptions(currentTrack.year, allYears, 4));
-    }
-  }, [currentQuestion, currentTrack, allBands, allYears]);
+  const bandOptions = useMemo(() => {
+    if (!currentTrack || allBands.length === 0) return [];
+    return generateOptions(currentTrack.band_name, allBands, 4);
+  }, [currentTrack, allBands]);
 
-  // Timer logic - pauses when exit modal is shown
-  useEffect(() => {
-    if (!gameStarted || !playerReady || timeRemaining <= 0 || showExitModal) return;
-
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          handleContinue();
-          return TOTAL_TIME;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [gameStarted, playerReady, timeRemaining, showExitModal]);
+  const yearOptions = useMemo(() => {
+    if (!currentTrack || allYears.length === 0) return [];
+    return generateOptions(currentTrack.year, allYears, 4);
+  }, [currentTrack, allYears]);
 
   const handleContinue = useCallback(async () => {
     const timeTaken = TOTAL_TIME - timeRemaining;
@@ -186,49 +169,36 @@ export default function QuizPage() {
     }
   }, [currentQuestion, selectedBand, selectedYear, timeRemaining, currentTrack, score, correctAnswers, totalTimeTaken, tracks.length, router]);
 
+  // Timer logic - pauses when exit modal is shown
+  useEffect(() => {
+    if (!gameStarted || !playerReady || timeRemaining <= 0 || showExitModal) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          handleContinue();
+          return TOTAL_TIME;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameStarted, playerReady, timeRemaining, showExitModal, handleContinue]);
+
   // Auth loading
   if (authLoading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-white">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
-            <p className="text-body">Loading...</p>
-          </div>
-        </main>
-      </div>
-    );
+    return <LoadingState message="Loading..." className="bg-white" />;
   }
 
   // Not authenticated - show loading while redirecting
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex flex-col bg-white">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
-            <p className="text-body">Redirecting to Spotify login...</p>
-          </div>
-        </main>
-      </div>
-    );
+    return <LoadingState message="Redirecting to Spotify login..." className="bg-white" />;
   }
 
   // Loading tracks
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-white">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
-            <p className="text-body">Loading quiz...</p>
-          </div>
-        </main>
-      </div>
-    );
+    return <LoadingState message="Loading quiz..." className="bg-white" />;
   }
 
   // No tracks available
@@ -290,7 +260,6 @@ export default function QuizPage() {
                   trackUri={playerActivated ? (currentTrack?.spotify_uri || null) : null}
                   onReady={() => setPlayerReady(true)}
                   onError={(error) => setPlayerError(error)}
-                  onPlaybackChange={(playing) => setIsPlaying(playing)}
                   onActivate={() => {
                     setPlayerActivated(true);
                     setGameStarted(true);
@@ -397,7 +366,6 @@ export default function QuizPage() {
                 trackUri={currentTrack?.spotify_uri || null}
                 onReady={() => setPlayerReady(true)}
                 onError={(error) => setPlayerError(error)}
-                onPlaybackChange={(playing) => setIsPlaying(playing)}
                 onActivate={() => setPlayerActivated(true)}
               />
             )}

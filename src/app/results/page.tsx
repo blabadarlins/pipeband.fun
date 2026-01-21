@@ -50,7 +50,6 @@ function TrophyIcon() {
 function ResultsContent() {
   const searchParams = useSearchParams();
   
-  const score = parseInt(searchParams.get("score") || "0");
   const correct = parseInt(searchParams.get("correct") || "0");
   const total = parseInt(searchParams.get("total") || "10");
   const timeSeconds = parseInt(searchParams.get("time") || "0");

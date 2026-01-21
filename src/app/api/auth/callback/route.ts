@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens, getSpotifyUser } from "@/lib/spotify";
 import { upsertUserServer, createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import {
+  setSpotifyAccessCookie,
+  setSpotifyRefreshCookie,
+  setSpotifyUserCookie,
+  setUserIdCookie,
+} from "@/lib/cookies/server";
 
 function getOrigin(request: NextRequest): string {
   // Use forwarded headers (set by Vercel/proxies) for the correct public URL
@@ -10,70 +16,60 @@ function getOrigin(request: NextRequest): string {
   return `${protocol}://${host}`;
 }
 
+const isDebug = process.env.NODE_ENV !== "production";
+const debugLog = (...args: unknown[]) => {
+  if (isDebug) {
+    console.log(...args);
+  }
+};
+
 export async function GET(request: NextRequest) {
   const origin = getOrigin(request);
-  console.log("Auth callback hit:", request.url);
-  console.log("Determined origin:", origin);
+  debugLog("Auth callback hit:", request.url);
+  debugLog("Determined origin:", origin);
   
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
   const error = searchParams.get("error");
 
-  console.log("Code:", code ? "present" : "missing");
-  console.log("Error:", error);
+  debugLog("Code:", code ? "present" : "missing");
+  debugLog("Error:", error);
 
   if (error) {
-    console.log("Spotify returned error:", error);
+    debugLog("Spotify returned error:", error);
     return NextResponse.redirect(`${origin}/?error=auth_failed`);
   }
 
   if (!code) {
-    console.log("No code in callback");
+    debugLog("No code in callback");
     return NextResponse.redirect(`${origin}/?error=no_code`);
   }
 
   try {
-    console.log("Exchanging code for tokens...");
+    debugLog("Exchanging code for tokens...");
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(code);
-    console.log("Tokens received:", tokens.access_token ? "yes" : "no");
+    debugLog("Tokens received:", tokens.access_token ? "yes" : "no");
     
     // Get user profile from Spotify
     const spotifyUser = await getSpotifyUser(tokens.access_token);
-    console.log("User fetched:", spotifyUser.display_name);
+    debugLog("User fetched:", spotifyUser.display_name);
 
     // Store tokens in cookies (in production, store in database)
     const cookieStore = await cookies();
-    
-    cookieStore.set("spotify_access_token", tokens.access_token, {
-      httpOnly: false, // Needs to be readable by client JS for Web Playback SDK
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: tokens.expires_in,
-    });
 
-    cookieStore.set("spotify_refresh_token", tokens.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-    });
-
-    cookieStore.set("spotify_user", JSON.stringify({
+    setSpotifyAccessCookie(cookieStore, tokens.access_token, tokens.expires_in);
+    setSpotifyRefreshCookie(cookieStore, tokens.refresh_token);
+    setSpotifyUserCookie(cookieStore, {
       id: spotifyUser.id,
       display_name: spotifyUser.display_name,
       email: spotifyUser.email,
       images: spotifyUser.images,
-    }), {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 
     // Upsert user to Supabase database
     let dbUser = await upsertUserServer(spotifyUser);
-    console.log("User upserted to database:", dbUser?.id);
+    debugLog("User upserted to database:", dbUser?.id);
 
     // Fallback: if upsertUserServer failed, try to find existing user
     if (!dbUser) {
@@ -89,7 +85,7 @@ export async function GET(request: NextRequest) {
         if (error) {
           console.error("Fallback user lookup failed:", error.message);
         } else if (data) {
-          console.log("Found existing user via fallback:", data.id);
+          debugLog("Found existing user via fallback:", data.id);
           dbUser = data;
         }
       } catch (fallbackError) {
@@ -99,13 +95,8 @@ export async function GET(request: NextRequest) {
 
     // Store the database user ID in a cookie for game session tracking
     if (dbUser?.id) {
-      cookieStore.set("user_id", dbUser.id, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-      });
-      console.log("user_id cookie set successfully:", dbUser.id);
+      setUserIdCookie(cookieStore, dbUser.id);
+      debugLog("user_id cookie set successfully:", dbUser.id);
     } else {
       console.error("CRITICAL: Could not create or find user for spotify_id:", spotifyUser.id);
     }

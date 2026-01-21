@@ -12,7 +12,7 @@ export async function GET() {
     if (spotifyUser) {
       parsedSpotifyUser = JSON.parse(decodeURIComponent(spotifyUser));
     }
-  } catch (e) {
+  } catch {
     // ignore parse error
   }
 

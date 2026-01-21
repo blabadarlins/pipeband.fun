@@ -31,8 +31,26 @@ async function getSpotifyAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+type SpotifyPlaylistTrack = {
+  id: string;
+  uri: string;
+  name: string;
+  preview_url: string | null;
+  artists: { name: string }[];
+  album: { name: string; release_date: string };
+};
+
+type SpotifyPlaylistItem = {
+  track: SpotifyPlaylistTrack | null;
+};
+
+type SpotifyPlaylistResponse = {
+  items: SpotifyPlaylistItem[];
+  next: string | null;
+};
+
 async function fetchPlaylistTracks(accessToken: string) {
-  const tracks: any[] = [];
+  const tracks: SpotifyPlaylistItem[] = [];
   let url: string | null = `https://api.spotify.com/v1/playlists/${PLAYLIST_ID}/tracks?limit=100`;
 
   while (url) {
@@ -46,7 +64,7 @@ async function fetchPlaylistTracks(accessToken: string) {
       throw new Error("Failed to fetch playlist tracks");
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as SpotifyPlaylistResponse;
     tracks.push(...data.items);
     url = data.next;
   }
@@ -70,9 +88,12 @@ export async function GET(request: NextRequest) {
 
     // Transform and prepare tracks for database
     const tracksToInsert = playlistTracks
-      .filter((item: any) => item.track && item.track.id)
-      .map((item: any) => {
+      .filter((item) => item.track && item.track.id)
+      .map((item) => {
         const track = item.track;
+        if (!track) {
+          return null;
+        }
         const artist = track.artists[0]?.name || "Unknown Band";
         const album = track.album;
         const releaseYear = album.release_date
@@ -87,7 +108,8 @@ export async function GET(request: NextRequest) {
           track_name: track.name,
           preview_url: track.preview_url,
         };
-      });
+      })
+      .filter((track): track is NonNullable<typeof track> => track !== null);
 
     // Clear existing tracks and insert new ones
     const { error: deleteError } = await supabase

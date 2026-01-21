@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import LoadingState from "@/components/LoadingState";
 import { getLeaderboard } from "@/lib/supabase/queries";
 import type { LeaderboardEntry } from "@/types";
 
@@ -111,10 +112,11 @@ export default function LeaderboardPage() {
             {/* Leaderboard list */}
             <div className="lg:w-2/3">
               {isLoading ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent mx-auto mb-4"></div>
-                  <p className="text-body">Loading leaderboard...</p>
-                </div>
+                <LoadingState
+                  fullScreen={false}
+                  message="Loading leaderboard..."
+                  className="text-center py-12"
+                />
               ) : leaderboard.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-body mb-2">No scores yet!</p>

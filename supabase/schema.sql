@@ -81,6 +81,10 @@ CREATE POLICY "Users are viewable by everyone" ON users
 CREATE POLICY "Users can update own profile" ON users
   FOR UPDATE USING (auth.uid()::text = spotify_id);
 
+-- Users can be created (needed for Spotify auth callback)
+CREATE POLICY "Users can be created" ON users
+  FOR INSERT WITH CHECK (true);
+
 -- Tracks are readable by everyone
 CREATE POLICY "Tracks are viewable by everyone" ON tracks
   FOR SELECT USING (true);

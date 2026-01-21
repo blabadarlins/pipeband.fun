@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 
+const isDebug = process.env.NODE_ENV !== "production";
+const debugLog = (...args: unknown[]) => {
+  if (isDebug) {
+    console.log(...args);
+  }
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -19,8 +26,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Saving game session for user:", userId);
-    console.log("Score:", score, "Correct:", correctAnswers);
+    debugLog("Saving game session for user:", userId);
+    debugLog("Score:", score, "Correct:", correctAnswers);
 
     // Use admin client to bypass RLS
     const supabase = createAdminClient();
@@ -45,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Game session saved successfully:", data.id);
+    debugLog("Game session saved successfully:", data.id);
     return NextResponse.json({ success: true, id: data.id });
   } catch (error) {
     console.error("Unexpected error saving game session:", error);

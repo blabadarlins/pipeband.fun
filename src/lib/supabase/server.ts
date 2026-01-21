@@ -2,6 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
+const isDebug = process.env.NODE_ENV !== "production";
+const debugLog = (...args: unknown[]) => {
+  if (isDebug) {
+    console.log(...args);
+  }
+};
+
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -47,10 +54,10 @@ export async function upsertUserServer(spotifyUser: {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
-  console.log("upsertUserServer called for spotify_id:", spotifyUser.id);
-  console.log("SUPABASE_URL set:", !!supabaseUrl);
-  console.log("SERVICE_ROLE_KEY set:", !!serviceRoleKey);
-  console.log("SERVICE_ROLE_KEY length:", serviceRoleKey?.length || 0);
+  debugLog("upsertUserServer called for spotify_id:", spotifyUser.id);
+  debugLog("SUPABASE_URL set:", !!supabaseUrl);
+  debugLog("SERVICE_ROLE_KEY set:", !!serviceRoleKey);
+  debugLog("SERVICE_ROLE_KEY length:", serviceRoleKey?.length || 0);
   
   if (!supabaseUrl || !serviceRoleKey) {
     console.error("CRITICAL: Missing Supabase environment variables!");
@@ -71,7 +78,7 @@ export async function upsertUserServer(spotifyUser: {
       updated_at: new Date().toISOString(),
     };
     
-    console.log("Attempting upsert with data:", JSON.stringify(userData));
+    debugLog("Attempting upsert with data:", JSON.stringify(userData));
     
     const { data, error } = await supabase
       .from("users")
@@ -89,7 +96,7 @@ export async function upsertUserServer(spotifyUser: {
       return null;
     }
 
-    console.log("User upsert successful, id:", data?.id);
+    debugLog("User upsert successful, id:", data?.id);
     return data;
   } catch (err) {
     console.error("upsertUserServer threw exception:", err);

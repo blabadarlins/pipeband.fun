@@ -5,14 +5,13 @@ import Logo from "./Logo";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 
 interface HeaderProps {
-  showLogin?: boolean;
   logoVariant?: "default" | "light";
 }
 
-export default function Header({ showLogin = false, logoVariant = "default" }: HeaderProps) {
+export default function Header({ logoVariant = "default" }: HeaderProps) {
   const { user, isAuthenticated, isLoading, logout } = useSpotifyAuth();
   const [showDropdown, setShowDropdown] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [imageErrorUrl, setImageErrorUrl] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -32,22 +31,9 @@ export default function Header({ showLogin = false, logoVariant = "default" }: H
     };
   }, [showDropdown]);
 
-  // Reset image error when user changes
-  useEffect(() => {
-    setImageError(false);
-  }, [user]);
-
   const profileImageUrl = user?.images?.[0]?.url;
   const displayInitial = user?.display_name?.charAt(0)?.toUpperCase() || "?";
-  const showImage = profileImageUrl && !imageError;
-
-  // Debug: log what we're getting from the user object
-  useEffect(() => {
-    if (user) {
-      console.log("Spotify user images:", user.images);
-      console.log("Profile image URL:", profileImageUrl);
-    }
-  }, [user, profileImageUrl]);
+  const showImage = profileImageUrl && imageErrorUrl !== profileImageUrl;
 
   return (
     <header className="w-full py-6 px-4">
@@ -70,7 +56,7 @@ export default function Header({ showLogin = false, logoVariant = "default" }: H
                   src={profileImageUrl}
                   alt=""
                   className="w-full h-full object-cover"
-                  onError={() => setImageError(true)}
+                  onError={() => setImageErrorUrl(profileImageUrl ?? null)}
                   referrerPolicy="no-referrer"
                 />
               ) : (

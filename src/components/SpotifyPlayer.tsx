@@ -2,6 +2,42 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
+type SpotifyDevice = { device_id: string };
+type SpotifyError = { message: string };
+type SpotifyPlaybackState = {
+  paused: boolean;
+  track_window?: { current_track?: { uri?: string } | null } | null;
+};
+
+type SpotifyPlayerInstance = {
+  addListener(event: "ready" | "not_ready", cb: (device: SpotifyDevice) => void): void;
+  addListener(
+    event:
+      | "initialization_error"
+      | "authentication_error"
+      | "account_error"
+      | "playback_error",
+    cb: (error: SpotifyError) => void
+  ): void;
+  addListener(
+    event: "player_state_changed",
+    cb: (state: SpotifyPlaybackState | null) => void
+  ): void;
+  connect(): Promise<boolean>;
+  activateElement(): Promise<void>;
+  pause(): Promise<void>;
+};
+
+type SpotifyPlayerOptions = {
+  name: string;
+  getOAuthToken: (cb: (token: string) => void) => void;
+  volume?: number;
+};
+
+type SpotifySDK = {
+  Player: new (options: SpotifyPlayerOptions) => SpotifyPlayerInstance;
+};
+
 interface SpotifyPlayerProps {
   accessToken: string;
   trackUri: string | null;
@@ -13,13 +49,14 @@ interface SpotifyPlayerProps {
 
 declare global {
   interface Window {
-    Spotify: any;
-    onSpotifyWebPlaybackSDKReady: () => void;
+    Spotify?: SpotifySDK;
+    onSpotifyWebPlaybackSDKReady?: () => void;
+    __activateSpotifyPlayer?: () => Promise<void>;
   }
 }
 
 // Singleton pattern - prevent multiple player instances
-let globalPlayer: any = null;
+let globalPlayer: SpotifyPlayerInstance | null = null;
 let globalDeviceId: string | null = null;
 let isPlayerInitializing = false;
 let isPlayerActivated = false;
@@ -69,7 +106,7 @@ export default function SpotifyPlayer({
 
   // Initialize player when SDK is loaded (singleton)
   useEffect(() => {
-    if (!sdkLoaded || !accessToken) return;
+    if (!sdkLoaded || !accessToken || !window.Spotify) return;
     
     // If we already have a global player with a device ID, reuse it
     if (globalPlayer && globalDeviceId) {
@@ -96,7 +133,7 @@ export default function SpotifyPlayer({
       volume: 0.5,
     });
 
-    player.addListener("ready", ({ device_id }: { device_id: string }) => {
+    player.addListener("ready", ({ device_id }: SpotifyDevice) => {
       console.log("Spotify Player ready with Device ID:", device_id);
       globalDeviceId = device_id;
       globalPlayer = player;
@@ -110,27 +147,27 @@ export default function SpotifyPlayer({
       }
     });
 
-    player.addListener("not_ready", ({ device_id }: { device_id: string }) => {
+    player.addListener("not_ready", ({ device_id }: SpotifyDevice) => {
       console.log("Device ID has gone offline:", device_id);
       if (mountedRef.current) {
         setIsReady(false);
       }
     });
 
-    player.addListener("player_state_changed", (state: any) => {
+    player.addListener("player_state_changed", (state: SpotifyPlaybackState | null) => {
       if (!state || !mountedRef.current) return;
       const playing = !state.paused;
       setIsPlaying(playing);
       onPlaybackChange?.(playing);
     });
 
-    player.addListener("initialization_error", ({ message }: { message: string }) => {
+    player.addListener("initialization_error", ({ message }: SpotifyError) => {
       console.error("Spotify initialization error:", message);
       isPlayerInitializing = false;
       onError?.(message);
     });
 
-    player.addListener("authentication_error", ({ message }: { message: string }) => {
+    player.addListener("authentication_error", ({ message }: SpotifyError) => {
       console.error("Spotify authentication error:", message);
       isPlayerInitializing = false;
       onError?.("Session expired. Refreshing...");
@@ -147,13 +184,13 @@ export default function SpotifyPlayer({
         });
     });
 
-    player.addListener("account_error", ({ message }: { message: string }) => {
+    player.addListener("account_error", ({ message }: SpotifyError) => {
       console.error("Spotify account error:", message);
       isPlayerInitializing = false;
       onError?.("Spotify Premium is required for playback.");
     });
 
-    player.addListener("playback_error", ({ message }: { message: string }) => {
+    player.addListener("playback_error", ({ message }: SpotifyError) => {
       console.error("Spotify playback error:", message);
       onError?.(message);
     });
@@ -182,10 +219,10 @@ export default function SpotifyPlayer({
   }, []);
 
   // Play track with exponential backoff for rate limiting
-  const playTrackWithRetry = useCallback(async (
-    uri: string, 
+  const playTrackWithRetry = useCallback(async function playTrackWithRetry(
+    uri: string,
     attempt: number = 0
-  ): Promise<boolean> => {
+  ): Promise<boolean> {
     const maxAttempts = 3;
     const baseDelay = 2000;
 
@@ -317,10 +354,10 @@ export default function SpotifyPlayer({
   useEffect(() => {
     if (globalPlayer && !isActivated && isReady) {
       // Make activation available
-      (window as any).__activateSpotifyPlayer = handleActivate;
+      window.__activateSpotifyPlayer = handleActivate;
     }
     return () => {
-      delete (window as any).__activateSpotifyPlayer;
+      delete window.__activateSpotifyPlayer;
     };
   }, [handleActivate, isActivated, isReady]);
 
@@ -350,7 +387,7 @@ export default function SpotifyPlayer({
 
 // Export a function to manually trigger activation from other components
 export function activateSpotifyPlayer(): Promise<void> {
-  const activate = (window as any).__activateSpotifyPlayer;
+  const activate = window.__activateSpotifyPlayer;
   if (activate) {
     return activate();
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getClientCookie, deleteClientCookie } from "@/lib/cookies/client";
 
 interface SpotifyUser {
   id: string;
@@ -10,17 +11,26 @@ interface SpotifyUser {
 }
 
 export function useSpotifyAuth() {
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [user, setUser] = useState<SpotifyUser | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const getCookie = (name: string) => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(";").shift();
-    return null;
-  };
+  const [accessToken, setAccessToken] = useState<string | null>(() => {
+    if (typeof document === "undefined") return null;
+    return getClientCookie("spotify_access_token");
+  });
+  const [user, setUser] = useState<SpotifyUser | null>(() => {
+    if (typeof document === "undefined") return null;
+    const userCookie = getClientCookie("spotify_user");
+    if (!userCookie) return null;
+    try {
+      const decoded = decodeURIComponent(userCookie);
+      return JSON.parse(decoded) as SpotifyUser;
+    } catch {
+      return null;
+    }
+  });
+  const [userId, setUserId] = useState<string | null>(() => {
+    if (typeof document === "undefined") return null;
+    return getClientCookie("user_id");
+  });
+  const isLoading = false;
 
   const refreshToken = useCallback(async () => {
     try {
@@ -44,31 +54,6 @@ export function useSpotifyAuth() {
     }
   }, []);
 
-  useEffect(() => {
-    const token = getCookie("spotify_access_token");
-    const userCookie = getCookie("spotify_user");
-    const userIdCookie = getCookie("user_id");
-
-    if (token) {
-      setAccessToken(token);
-    }
-
-    if (userCookie) {
-      try {
-        const decoded = decodeURIComponent(userCookie);
-        setUser(JSON.parse(decoded));
-      } catch (e) {
-        console.error("Failed to parse user cookie:", e);
-      }
-    }
-
-    if (userIdCookie) {
-      setUserId(userIdCookie);
-    }
-
-    setIsLoading(false);
-  }, []);
-
   // Auto-refresh token before expiry (refresh every 45 minutes)
   useEffect(() => {
     if (!accessToken) return;
@@ -81,10 +66,10 @@ export function useSpotifyAuth() {
   }, [accessToken, refreshToken]);
 
   const logout = () => {
-    document.cookie = "spotify_access_token=; Max-Age=0; path=/";
-    document.cookie = "spotify_refresh_token=; Max-Age=0; path=/";
-    document.cookie = "spotify_user=; Max-Age=0; path=/";
-    document.cookie = "user_id=; Max-Age=0; path=/";
+    deleteClientCookie("spotify_access_token");
+    deleteClientCookie("spotify_refresh_token");
+    deleteClientCookie("spotify_user");
+    deleteClientCookie("user_id");
     setAccessToken(null);
     setUser(null);
     setUserId(null);
