@@ -11,7 +11,7 @@ import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 import { getRandomTracks, getAllBandNames, getAllYears, saveGameSession } from "@/lib/supabase/queries";
 import type { Track } from "@/types";
 
-const TOTAL_TIME = 20;
+const TOTAL_TIME = 30;
 const TOTAL_QUESTIONS = 10;
 
 function generateOptions<T>(correct: T, allOptions: T[], count: number = 4): T[] {

@@ -5,7 +5,7 @@ import Image from "next/image";
 const faqs = [
   {
     question: "How does it work?",
-    answer: "You'll be given 10 questions per round. Each question features a 20-second audio clip from a well-known pipe band medley. Your job is to identify the correct tune before time runs out! The faster you answer, the higher your score."
+    answer: "You'll be given 10 questions per round. Each question features a 30-second audio clip from a well-known pipe band medley. Your job is to identify the correct tune before time runs out! The faster you answer, the higher your score."
   },
   {
     question: "How do I sign up?",
@@ -52,7 +52,7 @@ export default function AboutPage() {
           <section className="text-center mb-16 relative">
             <p className="text-white text-xl leading-relaxed max-w-2xl mx-auto">
               <strong>Introducing pipeband.fun</strong> — a fast-paced quiz that puts your medley knowledge to the test. 
-              Spanning iconic sets from the 1980s to the 2010s, this 10-question challenge gives you 20 seconds per clip to guess the tune.
+              Spanning iconic sets from the 1980s to the 2010s, this 10-question challenge gives you 30 seconds per clip to guess the tune.
             </p>
             <p className="text-white text-xl leading-relaxed max-w-2xl mx-auto mt-6">
               Sign up with your Spotify account and see how many you can nail. It&apos;s time to prove your expertise 
