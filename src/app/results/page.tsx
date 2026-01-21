@@ -1,10 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Button from "@/components/Button";
+import ShareModal from "@/components/ShareModal";
 import Link from "next/link";
+import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 
 // Congratulatory messages based on score
 const messages = {
@@ -49,6 +51,11 @@ function TrophyIcon() {
 
 function ResultsContent() {
   const searchParams = useSearchParams();
+  const { user } = useSpotifyAuth();
+  const [isSharing, setIsSharing] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareImageBlob, setShareImageBlob] = useState<Blob | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
   
   const correct = parseInt(searchParams.get("correct") || "0");
   const total = parseInt(searchParams.get("total") || "10");
@@ -63,52 +70,177 @@ function ResultsContent() {
     ? `${minutes} min ${seconds} sec` 
     : `${seconds} sec`;
 
-  return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <Header />
+  // Get user avatar URL from Spotify data
+  const avatarUrl = user?.images?.[0]?.url || null;
+
+  const fetchShareImage = async (signal?: AbortSignal): Promise<Blob> => {
+    const params = new URLSearchParams({
+      time: timeSeconds.toString(),
+      correct: correct.toString(),
+      total: total.toString(),
+    });
+    
+    if (avatarUrl) {
+      params.set("avatar", avatarUrl);
+    }
+    
+    const imageUrl = `/api/share/image?${params.toString()}`;
+    const response = await fetch(imageUrl, { signal });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to generate image: ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    
+    // Ensure blob has correct type (should be image/png)
+    if (!blob.type.startsWith("image/")) {
+      throw new Error(`Invalid image type: ${blob.type}`);
+    }
+    
+    return blob;
+  };
+
+  const handleShare = async () => {
+    setIsSharing(true);
+    setShareError(null);
+    
+    try {
+      // Add timeout to prevent hanging on slow connections
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="max-w-lg mx-auto text-center">
-          {/* Avatar placeholder */}
-          <div className="w-24 h-24 rounded-full bg-accent/20 border-4 border-accent mx-auto mb-6 flex items-center justify-center">
-            <span className="text-3xl">🎵</span>
-          </div>
+      // Fetch the generated image
+      const blob = await fetchShareImage(controller.signal);
+      clearTimeout(timeout);
+      
+      const file = new File([blob], "pipeband-results.png", { type: "image/png" });
+      
+      // Check if Web Share API supports sharing files (typically mobile)
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "My pipeband.fun score!",
+            text: `I scored ${correct}/${total} in ${timeDisplay} on pipeband.fun!`,
+          });
+        } catch (shareErr) {
+          // If user cancelled, don't show error or fallback
+          if ((shareErr as Error).name === "AbortError") {
+            return;
+          }
+          // Native share failed for another reason, show modal as fallback
+          setShareImageBlob(blob);
+          setShowShareModal(true);
+        }
+      } else {
+        // Desktop or unsupported: show modal with copy/download options
+        setShareImageBlob(blob);
+        setShowShareModal(true);
+      }
+    } catch (error) {
+      // Handle timeout
+      if ((error as Error).name === "AbortError") {
+        setShareError("Request timed out. Please try again.");
+      } else {
+        const errorMessage = error instanceof Error ? error.message : "Something went wrong";
+        setShareError(errorMessage);
+      }
+      console.error("Share error:", error);
+    } finally {
+      setIsSharing(false);
+    }
+  };
 
-          <h1 className="heading-lg mb-8">Congrats!</h1>
+  const handleCloseModal = () => {
+    setShowShareModal(false);
+    setShareImageBlob(null);
+  };
 
-          {/* Stats */}
-          <div className="flex justify-center gap-4 mb-8">
-            <div className="bg-accent/10 rounded-full px-6 py-4 flex items-center gap-3">
-              <span className="text-accent">
-                <ClockIcon />
-              </span>
-              <span className="heading-md">{timeDisplay}</span>
+  return (
+    <>
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        
+        <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+          <div className="max-w-lg mx-auto text-center">
+            {/* User Avatar */}
+            <div className="w-24 h-24 rounded-full bg-accent/20 border-4 border-accent mx-auto mb-6 flex items-center justify-center overflow-hidden">
+              {avatarUrl ? (
+                <img 
+                  src={avatarUrl} 
+                  alt="Your profile" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-3xl">🎵</span>
+              )}
             </div>
-            <div className="bg-accent/10 rounded-full px-6 py-4 flex items-center gap-3">
-              <span className="text-accent">
-                <CheckIcon />
-              </span>
-              <span className="heading-md">{correct}/{total}</span>
+
+            <h1 className="heading-lg mb-8">Congrats!</h1>
+
+            {/* Stats */}
+            <div className="flex justify-center gap-4 mb-8">
+              <div className="bg-accent/10 rounded-full px-6 py-4 flex items-center gap-3">
+                <span className="text-accent">
+                  <ClockIcon />
+                </span>
+                <span className="heading-md">{timeDisplay}</span>
+              </div>
+              <div className="bg-accent/10 rounded-full px-6 py-4 flex items-center gap-3">
+                <span className="text-accent">
+                  <CheckIcon />
+                </span>
+                <span className="heading-md">{correct}/{total}</span>
+              </div>
             </div>
-          </div>
 
-          {/* Message */}
-          <p className="text-body mb-10">&ldquo;{message}&rdquo;</p>
+            {/* Message */}
+            <p className="text-body mb-10">&ldquo;{message}&rdquo;</p>
 
-          {/* Action Buttons */}
-          <div className="flex justify-center gap-4">
-            <Button variant="facebook" icon={<FacebookIcon />}>
-              Share on Facebook
-            </Button>
-            <Link href="/leaderboard">
-              <Button variant="primary" icon={<TrophyIcon />}>
-                View Leaderboard
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-4">
+              <Button 
+                variant="facebook" 
+                icon={<FacebookIcon />}
+                onClick={handleShare}
+                disabled={isSharing}
+              >
+                {isSharing ? "Preparing..." : "Share on Facebook"}
               </Button>
-            </Link>
+              <Link href="/leaderboard">
+                <Button variant="primary" icon={<TrophyIcon />}>
+                  View Leaderboard
+                </Button>
+              </Link>
+            </div>
+
+            {/* Error Message */}
+            {shareError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 text-sm text-center">
+                  {shareError}
+                </p>
+                <button 
+                  onClick={() => setShareError(null)}
+                  className="text-red-500 text-xs underline mt-1 block mx-auto"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+
+      {/* Share Modal for Desktop */}
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={handleCloseModal}
+        imageBlob={shareImageBlob}
+        isLoading={false}
+      />
+    </>
   );
 }
 
