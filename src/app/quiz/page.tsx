@@ -118,7 +118,7 @@ export default function QuizPage() {
     return () => clearInterval(timer);
   }, [gameStarted, playerReady, timeRemaining, showExitModal]);
 
-  const handleContinue = useCallback(() => {
+  const handleContinue = useCallback(async () => {
     const timeTaken = TOTAL_TIME - timeRemaining;
     const newTotalTime = totalTimeTaken + timeTaken;
     setTotalTimeTaken(newTotalTime);
@@ -152,17 +152,18 @@ export default function QuizPage() {
       // Quiz complete - stop the music and save the game session
       pauseSpotifyPlayer();
       
-      // Save game session to database
+      // Save game session to database (await to ensure it completes before navigation)
       if (userId) {
-        saveGameSession(userId, newScore, newCorrect, tracks.length, newTotalTime)
-          .then((result) => {
-            if (result) {
-              console.log("Game session saved:", result.id);
-            }
-          })
-          .catch((error) => {
-            console.error("Failed to save game session:", error);
-          });
+        try {
+          const result = await saveGameSession(userId, newScore, newCorrect, tracks.length, newTotalTime);
+          if (result) {
+            console.log("Game session saved:", result.id);
+          } else {
+            console.error("Failed to save game session: no result returned");
+          }
+        } catch (error) {
+          console.error("Failed to save game session:", error);
+        }
       }
       
       const params = new URLSearchParams({
