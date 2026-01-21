@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens, getSpotifyUser } from "@/lib/spotify";
+import { upsertUser } from "@/lib/supabase/queries";
 import { cookies } from "next/headers";
 
 function getOrigin(request: NextRequest): string {
@@ -70,7 +71,19 @@ export async function GET(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 
-    // TODO: Upsert user to Supabase database
+    // Upsert user to Supabase database
+    const dbUser = await upsertUser(spotifyUser);
+    console.log("User upserted to database:", dbUser?.id);
+
+    // Store the database user ID in a cookie for game session tracking
+    if (dbUser?.id) {
+      cookieStore.set("user_id", dbUser.id, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      });
+    }
 
     return NextResponse.redirect(`${origin}/quiz`);
   } catch (error) {

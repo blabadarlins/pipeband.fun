@@ -12,6 +12,7 @@ interface SpotifyUser {
 export function useSpotifyAuth() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<SpotifyUser | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const getCookie = (name: string) => {
@@ -46,6 +47,7 @@ export function useSpotifyAuth() {
   useEffect(() => {
     const token = getCookie("spotify_access_token");
     const userCookie = getCookie("spotify_user");
+    const userIdCookie = getCookie("user_id");
 
     if (token) {
       setAccessToken(token);
@@ -58,6 +60,10 @@ export function useSpotifyAuth() {
       } catch (e) {
         console.error("Failed to parse user cookie:", e);
       }
+    }
+
+    if (userIdCookie) {
+      setUserId(userIdCookie);
     }
 
     setIsLoading(false);
@@ -78,14 +84,17 @@ export function useSpotifyAuth() {
     document.cookie = "spotify_access_token=; Max-Age=0; path=/";
     document.cookie = "spotify_refresh_token=; Max-Age=0; path=/";
     document.cookie = "spotify_user=; Max-Age=0; path=/";
+    document.cookie = "user_id=; Max-Age=0; path=/";
     setAccessToken(null);
     setUser(null);
+    setUserId(null);
     window.location.href = "/";
   };
 
   return {
     accessToken,
     user,
+    userId,
     isLoading,
     isAuthenticated: !!accessToken,
     logout,

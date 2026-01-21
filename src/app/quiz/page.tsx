@@ -8,7 +8,7 @@ import Button from "@/components/Button";
 import SpotifyPlayer, { pauseSpotifyPlayer } from "@/components/SpotifyPlayer";
 import { useRouter } from "next/navigation";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
-import { getRandomTracks, getAllBandNames, getAllYears } from "@/lib/supabase/queries";
+import { getRandomTracks, getAllBandNames, getAllYears, saveGameSession } from "@/lib/supabase/queries";
 import type { Track } from "@/types";
 
 const TOTAL_TIME = 20;
@@ -29,7 +29,7 @@ function generateOptions<T>(correct: T, allOptions: T[], count: number = 4): T[]
 
 export default function QuizPage() {
   const router = useRouter();
-  const { accessToken, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
+  const { accessToken, userId, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
   
   // Game state
   const [isLoading, setIsLoading] = useState(true);
@@ -149,8 +149,22 @@ export default function QuizPage() {
       setTimeRemaining(TOTAL_TIME);
       setPlayerError(null); // Clear any playback errors
     } else {
-      // Quiz complete - stop the music and redirect to results
+      // Quiz complete - stop the music and save the game session
       pauseSpotifyPlayer();
+      
+      // Save game session to database
+      if (userId) {
+        saveGameSession(userId, newScore, newCorrect, tracks.length, newTotalTime)
+          .then((result) => {
+            if (result) {
+              console.log("Game session saved:", result.id);
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to save game session:", error);
+          });
+      }
+      
       const params = new URLSearchParams({
         score: newScore.toString(),
         correct: newCorrect.toString(),
@@ -159,7 +173,7 @@ export default function QuizPage() {
       });
       router.push(`/results?${params.toString()}`);
     }
-  }, [currentQuestion, selectedBand, selectedYear, timeRemaining, currentTrack, score, correctAnswers, totalTimeTaken, tracks.length, router]);
+  }, [currentQuestion, selectedBand, selectedYear, timeRemaining, currentTrack, score, correctAnswers, totalTimeTaken, tracks.length, router, userId]);
 
   // Auth loading
   if (authLoading) {

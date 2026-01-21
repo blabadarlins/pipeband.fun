@@ -54,20 +54,18 @@ FROM users u
 JOIN game_sessions gs ON u.id = gs.user_id
 ORDER BY u.id, gs.score DESC;
 
--- Top scores view (for leaderboard page)
+-- Top scores view (for leaderboard page - cumulative all-time points)
 CREATE OR REPLACE VIEW top_scores AS
 SELECT 
   u.id,
   u.display_name,
   u.avatar_url,
   u.spotify_id,
-  MAX(gs.score) as best_score,
-  MAX(gs.correct_answers) as best_correct
+  SUM(gs.score) as best_score,
+  SUM(gs.correct_answers) as best_correct
 FROM users u
 JOIN game_sessions gs ON u.id = gs.user_id
-GROUP BY u.id, u.display_name, u.avatar_url, u.spotify_id
-ORDER BY best_score DESC
-LIMIT 50;
+GROUP BY u.id, u.display_name, u.avatar_url, u.spotify_id;
 
 -- Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

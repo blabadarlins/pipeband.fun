@@ -63,6 +63,7 @@ export async function getLeaderboard(limit: number = 50): Promise<LeaderboardEnt
   const { data, error } = await supabase
     .from("top_scores")
     .select("*")
+    .order("best_score", { ascending: false })
     .limit(limit);
 
   if (error) {
