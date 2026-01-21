@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export async function createClient() {
@@ -28,33 +29,70 @@ export async function createClient() {
   );
 }
 
+// Admin client with service role key - bypasses RLS for server-side operations
+export function createAdminClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export async function upsertUserServer(spotifyUser: {
   id: string;
   display_name: string;
   email?: string;
   images?: { url: string }[];
 }) {
-  const supabase = await createClient();
+  // Check if required environment variables are set
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
-  const { data, error } = await supabase
-    .from("users")
-    .upsert(
-      {
-        spotify_id: spotifyUser.id,
-        display_name: spotifyUser.display_name,
-        email: spotifyUser.email,
-        avatar_url: spotifyUser.images?.[0]?.url || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "spotify_id" }
-    )
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error upserting user:", error);
+  console.log("upsertUserServer called for spotify_id:", spotifyUser.id);
+  console.log("SUPABASE_URL set:", !!supabaseUrl);
+  console.log("SERVICE_ROLE_KEY set:", !!serviceRoleKey);
+  console.log("SERVICE_ROLE_KEY length:", serviceRoleKey?.length || 0);
+  
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("CRITICAL: Missing Supabase environment variables!");
+    console.error("NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "set" : "MISSING");
+    console.error("SUPABASE_SERVICE_ROLE_KEY:", serviceRoleKey ? "set" : "MISSING");
     return null;
   }
 
-  return data;
+  try {
+    // Use admin client to bypass RLS for user creation
+    const supabase = createAdminClient();
+    
+    const userData = {
+      spotify_id: spotifyUser.id,
+      display_name: spotifyUser.display_name,
+      email: spotifyUser.email,
+      avatar_url: spotifyUser.images?.[0]?.url || null,
+      updated_at: new Date().toISOString(),
+    };
+    
+    console.log("Attempting upsert with data:", JSON.stringify(userData));
+    
+    const { data, error } = await supabase
+      .from("users")
+      .upsert(userData, { onConflict: "spotify_id" })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase upsert error:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return null;
+    }
+
+    console.log("User upsert successful, id:", data?.id);
+    return data;
+  } catch (err) {
+    console.error("upsertUserServer threw exception:", err);
+    return null;
+  }
 }

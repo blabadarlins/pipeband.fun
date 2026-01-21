@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens, getSpotifyUser } from "@/lib/spotify";
-import { upsertUserServer } from "@/lib/supabase/server";
+import { upsertUserServer, createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 
 function getOrigin(request: NextRequest): string {
@@ -72,8 +72,30 @@ export async function GET(request: NextRequest) {
     });
 
     // Upsert user to Supabase database
-    const dbUser = await upsertUserServer(spotifyUser);
+    let dbUser = await upsertUserServer(spotifyUser);
     console.log("User upserted to database:", dbUser?.id);
+
+    // Fallback: if upsertUserServer failed, try to find existing user
+    if (!dbUser) {
+      console.error("upsertUserServer failed, trying to find existing user by spotify_id:", spotifyUser.id);
+      try {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("users")
+          .select("id")
+          .eq("spotify_id", spotifyUser.id)
+          .single();
+        
+        if (error) {
+          console.error("Fallback user lookup failed:", error.message);
+        } else if (data) {
+          console.log("Found existing user via fallback:", data.id);
+          dbUser = data;
+        }
+      } catch (fallbackError) {
+        console.error("Fallback user lookup threw error:", fallbackError);
+      }
+    }
 
     // Store the database user ID in a cookie for game session tracking
     if (dbUser?.id) {
@@ -83,6 +105,9 @@ export async function GET(request: NextRequest) {
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 30, // 30 days
       });
+      console.log("user_id cookie set successfully:", dbUser.id);
+    } else {
+      console.error("CRITICAL: Could not create or find user for spotify_id:", spotifyUser.id);
     }
 
     return NextResponse.redirect(`${origin}/quiz`);
