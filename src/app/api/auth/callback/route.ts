@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens, getSpotifyUser } from "@/lib/spotify";
-import { upsertUser } from "@/lib/supabase/queries";
+import { upsertUserServer } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 
 function getOrigin(request: NextRequest): string {
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Upsert user to Supabase database
-    const dbUser = await upsertUser(spotifyUser);
+    const dbUser = await upsertUserServer(spotifyUser);
     console.log("User upserted to database:", dbUser?.id);
 
     // Store the database user ID in a cookie for game session tracking

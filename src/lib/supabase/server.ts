@@ -27,3 +27,34 @@ export async function createClient() {
     }
   );
 }
+
+export async function upsertUserServer(spotifyUser: {
+  id: string;
+  display_name: string;
+  email?: string;
+  images?: { url: string }[];
+}) {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from("users")
+    .upsert(
+      {
+        spotify_id: spotifyUser.id,
+        display_name: spotifyUser.display_name,
+        email: spotifyUser.email,
+        avatar_url: spotifyUser.images?.[0]?.url || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "spotify_id" }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error upserting user:", error);
+    return null;
+  }
+
+  return data;
+}

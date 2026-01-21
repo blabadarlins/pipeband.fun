@@ -35,22 +35,32 @@ function LeaderboardRow({
   name, 
   username, 
   score, 
+  avatarUrl,
   isTopThree 
 }: { 
   rank: number; 
   name: string; 
   username: string; 
   score: number;
+  avatarUrl: string | null;
   isTopThree: boolean;
 }) {
   return (
     <div className={`flex items-center gap-4 p-4 rounded-xl ${isTopThree ? "bg-white" : ""}`}>
       <TrophyIcon rank={rank} />
       
-      {/* Avatar placeholder */}
-      <div className="w-10 h-10 rounded-full bg-grey-2 flex items-center justify-center text-grey text-sm font-bold">
-        {name.charAt(0)}
-      </div>
+      {/* Avatar */}
+      {avatarUrl ? (
+        <img 
+          src={avatarUrl} 
+          alt={name}
+          className="w-10 h-10 rounded-full object-cover"
+        />
+      ) : (
+        <div className="w-10 h-10 rounded-full bg-grey-2 flex items-center justify-center text-grey text-sm font-bold">
+          {name.charAt(0)}
+        </div>
+      )}
       
       <div className="flex-1">
         <p className="font-bold text-blue">{name}</p>
@@ -121,6 +131,7 @@ export default function LeaderboardPage() {
                         name={entry.display_name}
                         username={entry.spotify_id}
                         score={entry.score}
+                        avatarUrl={entry.avatar_url}
                         isTopThree={true}
                       />
                     ))}
@@ -140,6 +151,7 @@ export default function LeaderboardPage() {
                             name={entry.display_name}
                             username={entry.spotify_id}
                             score={entry.score}
+                            avatarUrl={entry.avatar_url}
                             isTopThree={false}
                           />
                         ))}
