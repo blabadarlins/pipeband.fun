@@ -12,6 +12,7 @@ interface HeaderProps {
 export default function Header({ showLogin = false, logoVariant = "default" }: HeaderProps) {
   const { user, isAuthenticated, isLoading, logout } = useSpotifyAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -31,8 +32,22 @@ export default function Header({ showLogin = false, logoVariant = "default" }: H
     };
   }, [showDropdown]);
 
+  // Reset image error when user changes
+  useEffect(() => {
+    setImageError(false);
+  }, [user]);
+
   const profileImageUrl = user?.images?.[0]?.url;
   const displayInitial = user?.display_name?.charAt(0)?.toUpperCase() || "?";
+  const showImage = profileImageUrl && !imageError;
+
+  // Debug: log what we're getting from the user object
+  useEffect(() => {
+    if (user) {
+      console.log("Spotify user images:", user.images);
+      console.log("Profile image URL:", profileImageUrl);
+    }
+  }, [user, profileImageUrl]);
 
   return (
     <header className="w-full py-6 px-4">
@@ -50,14 +65,16 @@ export default function Header({ showLogin = false, logoVariant = "default" }: H
               className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-accent transition-colors focus:outline-none focus:border-accent"
               aria-label="Profile menu"
             >
-              {profileImageUrl ? (
+              {showImage ? (
                 <img
                   src={profileImageUrl}
-                  alt={user?.display_name || "Profile"}
+                  alt=""
                   className="w-full h-full object-cover"
+                  onError={() => setImageError(true)}
+                  referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-full h-full bg-accent flex items-center justify-center text-white font-bold">
+                <div className="w-full h-full bg-accent flex items-center justify-center text-white font-bold text-lg">
                   {displayInitial}
                 </div>
               )}
