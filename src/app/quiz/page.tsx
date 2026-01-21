@@ -8,7 +8,7 @@ import Button from "@/components/Button";
 import SpotifyPlayer, { pauseSpotifyPlayer } from "@/components/SpotifyPlayer";
 import { useRouter } from "next/navigation";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
-import { getRandomTracks, getAllBandNames, getAllYears, saveGameSession } from "@/lib/supabase/queries";
+import { getRandomTracks, getAllBandNames, getAllYears } from "@/lib/supabase/queries";
 import type { Track } from "@/types";
 
 const TOTAL_TIME = 30;
@@ -29,7 +29,7 @@ function generateOptions<T>(correct: T, allOptions: T[], count: number = 4): T[]
 
 export default function QuizPage() {
   const router = useRouter();
-  const { accessToken, userId, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
+  const { accessToken, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
   
   // Game state
   const [isLoading, setIsLoading] = useState(true);
@@ -152,18 +152,28 @@ export default function QuizPage() {
       // Quiz complete - stop the music and save the game session
       pauseSpotifyPlayer();
       
-      // Save game session to database (await to ensure it completes before navigation)
-      if (userId) {
-        try {
-          const result = await saveGameSession(userId, newScore, newCorrect, tracks.length, newTotalTime);
-          if (result) {
-            console.log("Game session saved:", result.id);
-          } else {
-            console.error("Failed to save game session: no result returned");
-          }
-        } catch (error) {
+      // Save game session to database via API (server-side for reliable RLS handling)
+      try {
+        const response = await fetch("/api/game/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            score: newScore,
+            correctAnswers: newCorrect,
+            totalQuestions: tracks.length,
+            timeTakenSeconds: newTotalTime,
+          }),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log("Game session saved:", result.id);
+        } else {
+          const error = await response.json();
           console.error("Failed to save game session:", error);
         }
+      } catch (error) {
+        console.error("Failed to save game session:", error);
       }
       
       const params = new URLSearchParams({
@@ -174,7 +184,7 @@ export default function QuizPage() {
       });
       router.push(`/results?${params.toString()}`);
     }
-  }, [currentQuestion, selectedBand, selectedYear, timeRemaining, currentTrack, score, correctAnswers, totalTimeTaken, tracks.length, router, userId]);
+  }, [currentQuestion, selectedBand, selectedYear, timeRemaining, currentTrack, score, correctAnswers, totalTimeTaken, tracks.length, router]);
 
   // Auth loading
   if (authLoading) {
